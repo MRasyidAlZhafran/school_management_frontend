@@ -1,6 +1,7 @@
 <script lang="ts">
 	import QRCode from 'qrcode';
 	import { onMount } from 'svelte';
+	import { page } from '$app/state';
 	import Avatar from '$lib/components/ui/Avatar.svelte';
 	import {
 		ambilJadwalJurnal,
@@ -12,7 +13,7 @@
 		type StatusJurnal
 	} from '$lib/api/jurnal';
 
-	const ID_JADWAL = 1;
+	const ID_JADWAL = Number(page.url.searchParams.get('jadwal') ?? 1);
 
 	let kelas = $state('Kelas');
 	let mataPelajaran = $state('Mata Pelajaran');

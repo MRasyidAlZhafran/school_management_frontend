@@ -1,22 +1,28 @@
 import { api } from '$lib/api/client';
-import type { GuruAPI, PenggunaAPI } from '$lib/api/guru';
+import { ambilPengguna, type GuruAPI, type PenggunaAPI } from '$lib/api/guru';
 
 export interface HasilLogin {
 	pengguna: PenggunaAPI;
 	guru: GuruAPI;
 }
 
-export async function masukGuru(surel: string, kataSandi: string): Promise<HasilLogin> {
-	const semuaPengguna = await api<PenggunaAPI[]>('/pengguna');
-	const pengguna = semuaPengguna.find(
-		(p) => p.surel.trim().toLowerCase() === surel.trim().toLowerCase() && p.kataSandi === kataSandi
-	);
-	if (!pengguna) throw new Error('Surel atau kata sandi salah.');
-	if (!pengguna.isAktif) throw new Error('Akun dinonaktifkan. Hubungi admin.');
-
+export async function cariGuruByNip(nip: string): Promise<HasilLogin> {
 	const semuaGuru = await api<GuruAPI[]>('/guru');
-	const guru = semuaGuru.find((g) => g.penggunaId === pengguna.id);
-	if (!guru) throw new Error('Akun ini tidak terdaftar sebagai guru.');
-
+	const guru = semuaGuru.find((g) => g.nip?.trim() === nip.trim());
+	if (!guru) throw new Error('NIP tidak ditemukan.');
+	const pengguna = await ambilPengguna(guru.penggunaId);
+	if (!pengguna.isAktif) throw new Error('Akun dinonaktifkan. Hubungi admin.');
 	return { pengguna, guru };
+}
+
+export function butuhAturSandi(pengguna: PenggunaAPI): boolean {
+	return !pengguna.kataSandi || pengguna.kataSandi.trim() === '';
+}
+
+export function verifikasiSandi(pengguna: PenggunaAPI, kataSandi: string) {
+	if (pengguna.kataSandi !== kataSandi) throw new Error('Kata sandi salah.');
+}
+
+export function aturSandiBaru(penggunaId: number, kataSandi: string): Promise<PenggunaAPI> {
+	return api<PenggunaAPI>(`/pengguna/${penggunaId}`, { method: 'PATCH', body: { kataSandi } });
 }

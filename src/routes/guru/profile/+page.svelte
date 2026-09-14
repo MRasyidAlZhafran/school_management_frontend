@@ -10,6 +10,7 @@
 		type PenggunaAPI
 	} from '$lib/api/guru';
 	import { bacaSesi, hapusSesi, inisial } from '$lib/auth.svelte';
+	import { fade, scale } from 'svelte/transition';
 
 	let guru = $state<GuruAPI | null>(null);
 	let pengguna = $state<PenggunaAPI | null>(null);
@@ -17,6 +18,7 @@
 	let namaKelas = $state('Kelas');
 	let memuat = $state(true);
 	let pesanError = $state('');
+	let tanyaKeluar = $state(false);
 
 	const sesi = $derived(bacaSesi());
 	const akunAktif = $derived(pengguna?.isAktif ?? true);
@@ -276,7 +278,7 @@
 	<!-- ============ Logout ============ -->
 	<button
 		type="button"
-		onclick={keluar}
+		onclick={() => (tanyaKeluar = true)}
 		class="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-rose-300 border-b-rose-400 bg-rose-500 py-3 text-sm font-black text-white shadow-sm shadow-rose-500/20 transition-all duration-150 hover:bg-rose-600 active:translate-y-0.5 active:border-b-2"
 	>
 		<svg
@@ -296,4 +298,53 @@
 	<p class="pt-1 text-center text-[10px] font-bold text-slate-300">
 		Sekolah App · Portal Guru v1.0
 	</p>
+
+	{#if tanyaKeluar}
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-5 backdrop-blur-sm"
+			transition:fade={{ duration: 150 }}
+			role="dialog"
+			aria-modal="true"
+			aria-label="Konfirmasi keluar"
+		>
+			<div
+				class="w-full max-w-sm rounded-3xl border-2 border-b-4 border-[#E2E8F0] border-b-[#CBD5E1] bg-white p-6 text-center shadow-2xl"
+				transition:scale={{ duration: 160 }}
+			>
+				<div
+					class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border-b-4 border-rose-300 bg-rose-100 text-rose-600"
+				>
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						class="h-6 w-6"
+					>
+						<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4m7 14l5-5-5-5m5 5H9" />
+					</svg>
+				</div>
+				<h2 class="mt-4 text-lg font-black text-slate-800">Keluar dari aplikasi?</h2>
+				<p class="mt-1 text-xs font-medium text-slate-500">Kamu akan kembali ke halaman masuk.</p>
+				<div class="mt-5 grid grid-cols-2 gap-3">
+					<button
+						type="button"
+						onclick={() => (tanyaKeluar = false)}
+						class="rounded-2xl border-2 border-b-4 border-[#E2E8F0] border-b-[#CBD5E1] bg-white py-3 text-sm font-black text-slate-500 transition-all duration-150 active:translate-y-0.5 active:border-b-2"
+					>
+						Batal
+					</button>
+					<button
+						type="button"
+						onclick={keluar}
+						class="rounded-2xl border-b-4 border-b-rose-600 bg-rose-500 py-3 text-sm font-black text-white transition-all duration-150 hover:bg-rose-600 active:translate-y-0.5 active:border-b-2"
+					>
+						Ya, Keluar
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>

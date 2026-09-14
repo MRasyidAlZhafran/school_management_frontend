@@ -1,14 +1,34 @@
 <script lang="ts">
 	import '../app.css';
-	import { goto } from '$app/navigation';
+	import { beforeNavigate, goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { bacaSesi, inisial, inisialisasiSesi } from '$lib/auth.svelte';
+	import { cubicOut } from 'svelte/easing';
+	import { fly } from 'svelte/transition';
 	let { children } = $props();
 
 	const pathname = $derived(page.url.pathname);
 	const diLogin = $derived(pathname === '/login');
 	const sesiAktif = $derived(bacaSesi());
+
+	const urutanRute = ['/', '/guru/jurnal', '/guru/poin', '/guru/profile'];
+	const indeksAktif = $derived(Math.max(urutanRute.indexOf(pathname), 0));
+
+	let arahMasuk = $state(1);
+
+	beforeNavigate(({ from, to }) => {
+		const asal = from?.url.pathname ?? '';
+		const tujuan = to?.url.pathname ?? '';
+		if (asal === tujuan) return;
+		const indeksTujuan = urutanRute.indexOf(tujuan);
+		if (indeksTujuan === -1) return;
+		if (asal === '/login') {
+			arahMasuk = 1;
+		} else {
+			arahMasuk = indeksTujuan > urutanRute.indexOf(asal) ? -1 : 0;
+		}
+	});
 
 	inisialisasiSesi();
 
@@ -100,7 +120,18 @@
 
 		<!-- Konten Utama -->
 		<main class="flex-1 pt-4 pb-24">
-			{@render children()}
+			{#key pathname}
+				<div
+					transition:fly={{
+						x: arahMasuk === 1 ? 0 : arahMasuk === -1 ? -24 : 24,
+						y: arahMasuk === 1 ? 24 : 0,
+						duration: arahMasuk === 1 ? 280 : 220,
+						easing: cubicOut
+					}}
+				>
+					{@render children()}
+				</div>
+			{/key}
 		</main>
 
 		{#if !diLogin}
@@ -109,7 +140,11 @@
 				class="fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-t-2 border-slate-100 bg-white shadow-[0_-4px_12px_rgba(15,23,42,0.06)]"
 				aria-label="Navigasi bawah"
 			>
-				<div class="grid grid-cols-4">
+				<div class="relative grid grid-cols-4">
+					<span
+						class="pointer-events-none absolute top-0 left-0 h-1 w-1/4 rounded-b-full bg-secondary transition-transform duration-300 ease-out"
+						style="transform: translateX({indeksAktif * 100}%)"
+					></span>
 					{#each tabs as tab (tab.href)}
 						{@const aktif = tab.isAktif(pathname)}
 						<a
@@ -119,12 +154,7 @@
 								: 'text-slate-400 hover:text-slate-600'}"
 							aria-current={aktif ? 'page' : undefined}
 						>
-							<span class="relative">
-								{#if aktif}
-									<span
-										class="absolute -top-2 left-1/2 h-1 w-8 -translate-x-1/2 rounded-b-full bg-secondary"
-									></span>
-								{/if}
+							<span class="relative mt-0.5">
 								<svg
 									viewBox="0 0 24 24"
 									fill="none"
