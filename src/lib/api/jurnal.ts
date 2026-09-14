@@ -1,4 +1,11 @@
 import { api } from '$lib/api/client';
+import { mockSiswaJurnal } from '$lib/data/mock-jurnal';
+
+// Mode demo: selama backend composite belum tersedia, pakai mock data.
+// Balik menjadi `true` saat endpoint sesuai API-KONTRAK-JURNAL.md sudah ada.
+const GunakanAPI = false;
+
+const PENUNDAAN_DEMO = 350;
 
 export type StatusKehadiranAPI = 'BELUM' | 'HADIR' | 'TERLAMBAT' | 'IZIN' | 'SAKIT' | 'ALPA';
 
@@ -51,7 +58,27 @@ export const petaStatusLocal: Record<Exclude<StatusJurnal, 'belum'>, StatusKehad
 };
 
 export async function ambilJadwalJurnal(idJadwal: number): Promise<ResponsJadwalJurnal> {
-	return api<ResponsJadwalJurnal>(`/jurnal/${idJadwal}`);
+	if (GunakanAPI) {
+		return api<ResponsJadwalJurnal>(`/jurnal/${idJadwal}`);
+	}
+
+	await tunda(PENUNDAAN_DEMO);
+	return {
+		jadwal: {
+			id_jadwal: idJadwal,
+			nama_kelas: 'XII IPA 1',
+			nama_mapel: 'Fisika',
+			jam: '07:30 - 09:00',
+			ruangan: '203'
+		},
+		siswa: mockSiswaJurnal.map((s, i) => ({
+			id_siswa: i + 1,
+			nisn: s.nis,
+			nama_lengkap: s.nama,
+			status_kehadiran: 'BELUM',
+			waktu_scan: null
+		}))
+	};
 }
 
 export async function overrideAbsensi(payload: {
@@ -59,7 +86,12 @@ export async function overrideAbsensi(payload: {
 	id_siswa: number;
 	status_kehadiran: StatusKehadiranAPI;
 }) {
-	return api<{ ok: boolean }>('/absensi/override', { method: 'POST', body: payload });
+	if (GunakanAPI) {
+		return api<{ ok: boolean }>('/absensi/override', { method: 'POST', body: payload });
+	}
+
+	await tunda(PENUNDAAN_DEMO);
+	return { ok: true };
 }
 
 export interface ItemDaftarSiswaSubmit {
@@ -73,5 +105,14 @@ export async function kirimJurnalSesi(payload: {
 	catatan_jurnal: string;
 	daftar_siswa: ItemDaftarSiswaSubmit[];
 }) {
-	return api<{ ok: boolean }>('/jurnal/submit', { method: 'POST', body: payload });
+	if (GunakanAPI) {
+		return api<{ ok: boolean }>('/jurnal/submit', { method: 'POST', body: payload });
+	}
+
+	await tunda(PENUNDAAN_DEMO);
+	return { ok: true };
+}
+
+export function tunda(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }

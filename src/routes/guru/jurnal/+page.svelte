@@ -214,98 +214,100 @@
 <div class="space-y-4 px-4">
 	{#if qrTerbuka}
 		<!-- Modal Fullscreen QR Presensi -->
-		<div class="fixed inset-0 z-50 flex flex-col bg-primary">
-			<!-- Header modal -->
-			<div class="flex items-center justify-between px-4 py-3">
-				<div>
-					<p class="text-[11px] font-black tracking-widest text-white/50 uppercase">
-						Presensi QR • Sesi Berjalan
-					</p>
-					<p class="text-sm font-extrabold text-white">{kelas} — {mataPelajaran}</p>
-				</div>
-				<button
-					type="button"
-					onclick={tutupSesi}
-					class="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition active:scale-95"
-					aria-label="Tutup"
-				>
-					<svg
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						class="h-5 w-5"
+		<div class="fixed inset-0 z-[100] bg-primary">
+			<div class="relative mx-auto flex min-h-full max-w-md flex-col bg-primary">
+				<!-- Header modal -->
+				<div class="flex items-center justify-between px-4 py-3">
+					<div>
+						<p class="text-[11px] font-black tracking-widest text-white/50 uppercase">
+							Presensi QR • Sesi Berjalan
+						</p>
+						<p class="text-sm font-extrabold text-white">{kelas} — {mataPelajaran}</p>
+					</div>
+					<button
+						type="button"
+						onclick={tutupSesi}
+						class="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition active:scale-95"
+						aria-label="Tutup"
 					>
-						<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-					</svg>
-				</button>
-			</div>
-
-			<div class="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-6">
-				<!-- Countdown ring -->
-				<div class="relative flex h-24 w-24 items-center justify-center">
-					<svg viewBox="0 0 100 100" class="h-24 w-24 -rotate-90">
-						<circle
-							cx="50"
-							cy="50"
-							r="44"
+						<svg
+							viewBox="0 0 24 24"
 							fill="none"
-							stroke="rgba(255,255,255,0.15)"
-							stroke-width="6"
-						/>
-						<circle
-							cx="50"
-							cy="50"
-							r="44"
-							fill="none"
-							stroke="#2DADC2"
-							stroke-width="6"
+							stroke="currentColor"
+							stroke-width="2"
 							stroke-linecap="round"
-							stroke-dasharray="276.46"
-							stroke-dashoffset={276.46 * (1 - countdown / 30)}
-							class="transition-[stroke-dashoffset] duration-1000 ease-linear"
-						/>
-					</svg>
-					<span class="absolute text-2xl font-black text-white">{countdown}s</span>
-				</div>
-				<p class="text-xs text-white/60">Token QR diperbarui setiap 30 detik</p>
-
-				<!-- QR Code -->
-				{#if qrCodeUrl}
-					<div
-						class="rounded-2xl border-b-4 border-b-white/30 bg-white p-4 shadow-2xl shadow-secondary/20"
-					>
-						<img src={qrCodeUrl} alt="QR Code presensi" class="h-56 w-56" />
-					</div>
-				{:else}
-					<div
-						class="flex h-56 w-56 items-center justify-center rounded-2xl bg-white/10 text-white"
-					>
-						<span class="text-sm font-bold">Memuat QR...</span>
-					</div>
-				{/if}
-
-				<!-- Counter real-time -->
-				<div class="text-center">
-					<p class="text-3xl font-black text-secondary">
-						{hadir} <span class="text-lg font-bold text-white/60">/ {daftarSiswa.length}</span>
-					</p>
-					<p class="text-sm text-white/70">Siswa Hadir</p>
+							stroke-linejoin="round"
+							class="h-5 w-5"
+						>
+							<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+						</svg>
+					</button>
 				</div>
 
-				<!-- Progress -->
-				<div class="w-full max-w-xs">
-					<div class="h-3 w-full overflow-hidden rounded-full border border-white/20 bg-white/15">
+				<div class="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-6">
+					<!-- Countdown ring -->
+					<div class="relative flex h-24 w-24 items-center justify-center">
+						<svg viewBox="0 0 100 100" class="h-24 w-24 -rotate-90">
+							<circle
+								cx="50"
+								cy="50"
+								r="44"
+								fill="none"
+								stroke="rgba(255,255,255,0.15)"
+								stroke-width="6"
+							/>
+							<circle
+								cx="50"
+								cy="50"
+								r="44"
+								fill="none"
+								stroke="#2DADC2"
+								stroke-width="6"
+								stroke-linecap="round"
+								stroke-dasharray="276.46"
+								stroke-dashoffset={276.46 * (1 - countdown / 30)}
+								class="transition-[stroke-dashoffset] duration-1000 ease-linear"
+							/>
+						</svg>
+						<span class="absolute text-2xl font-black text-white">{countdown}s</span>
+					</div>
+					<p class="text-xs text-white/60">Token QR diperbarui setiap 30 detik</p>
+
+					<!-- QR Code -->
+					{#if qrCodeUrl}
 						<div
-							class="h-full rounded-full border-r-2 border-b-2 border-b-[#1f8ba3] bg-secondary transition-all duration-500"
-							style="width: {persenHadir}%"
-						></div>
+							class="rounded-2xl border-b-4 border-b-white/30 bg-white p-4 shadow-2xl shadow-secondary/20"
+						>
+							<img src={qrCodeUrl} alt="QR Code presensi" class="h-56 w-56" />
+						</div>
+					{:else}
+						<div
+							class="flex h-56 w-56 items-center justify-center rounded-2xl bg-white/10 text-white"
+						>
+							<span class="text-sm font-bold">Memuat QR...</span>
+						</div>
+					{/if}
+
+					<!-- Counter real-time -->
+					<div class="text-center">
+						<p class="text-3xl font-black text-secondary">
+							{hadir} <span class="text-lg font-bold text-white/60">/ {daftarSiswa.length}</span>
+						</p>
+						<p class="text-sm text-white/70">Siswa Hadir</p>
 					</div>
-					<div class="mt-2 flex items-center justify-between text-xs text-white/60">
-						<span>Ajar siswa menunjuk QR ke kamera kelas</span>
-						<span class="font-bold text-secondary">{persenHadir}%</span>
+
+					<!-- Progress -->
+					<div class="w-full max-w-xs">
+						<div class="h-3 w-full overflow-hidden rounded-full border border-white/20 bg-white/15">
+							<div
+								class="h-full rounded-full border-r-2 border-b-2 border-b-[#1f8ba3] bg-secondary transition-all duration-500"
+								style="width: {persenHadir}%"
+							></div>
+						</div>
+						<div class="mt-2 flex items-center justify-between text-xs text-white/60">
+							<span>Ajar siswa menunjuk QR ke kamera kelas</span>
+							<span class="font-bold text-secondary">{persenHadir}%</span>
+						</div>
 					</div>
 				</div>
 			</div>
