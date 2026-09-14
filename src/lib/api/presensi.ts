@@ -1,4 +1,3 @@
-import { api } from '$lib/api/client';
 import { mockSiswaJurnal, type SiswaJurnal } from '$lib/data/mock-jurnal';
 
 // =====================================================================
@@ -92,6 +91,8 @@ export async function kirimJurnalKelas(body: {
 	totalHadir: number;
 	absensi: Record<string, SiswaJurnal['status']>;
 }): Promise<{ id: string }> {
+	// Cadangan untuk integrasi API nyata.
+	void body;
 	if (GunakanAPI) {
 		// Nanti: return await api<{ id: string }>('/jurnal-kelas', {
 		// 	method: 'POST',

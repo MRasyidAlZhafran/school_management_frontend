@@ -18,9 +18,17 @@ export const daftarMapel = [
 	'Sejarah'
 ];
 
-export const pilihanStatus: { value: Exclude<StatusPresensi, 'belum'>; label: string; icon: string }[] = [
+export const pilihanStatus: {
+	value: Exclude<StatusPresensi, 'belum'>;
+	label: string;
+	icon: string;
+}[] = [
 	{ value: 'hadir', label: 'Hadir', icon: 'M5 13l4 4L19 7' },
-	{ value: 'izin', label: 'Izin', icon: 'M12 11c0-1 .5-2 2-2s2 1 2 2c0 .8-.4 1.3-1 1.8-.6.4-1 1-1 1.7' },
+	{
+		value: 'izin',
+		label: 'Izin',
+		icon: 'M12 11c0-1 .5-2 2-2s2 1 2 2c0 .8-.4 1.3-1 1.8-.6.4-1 1-1 1.7'
+	},
 	{ value: 'sakit', label: 'Sakit', icon: 'M12 6v6l4 2' },
 	{ value: 'alpa', label: 'Alpa', icon: 'M6 6l12 12M18 6L6 18' }
 ];

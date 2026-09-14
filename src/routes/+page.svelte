@@ -1,5 +1,8 @@
 <script lang="ts">
-	let nama = 'Ahmad Fauzi';
+	import { resolve } from '$app/paths';
+	import { bacaSesi } from '$lib/auth.svelte';
+
+	const nama = $derived(bacaSesi()?.namaLengkap ?? 'Guru');
 
 	const statistik = [
 		{
@@ -40,7 +43,14 @@
 		}
 	];
 
-	const aksesCepat = [
+	const aksesCepat: {
+		href: '/guru/jurnal' | '/guru/poin';
+		label: string;
+		desc: string;
+		bg: string;
+		border: string;
+		ikon: string;
+	}[] = [
 		{
 			href: '/guru/jurnal',
 			label: 'Mulai Absensi',
@@ -94,7 +104,7 @@
 
 	<!-- Statistik (4 kartu ala Duolingo) -->
 	<div class="grid grid-cols-2 gap-3">
-		{#each statistik as s}
+		{#each statistik as s (s.label)}
 			<div class="rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-sm">
 				<span
 					class="flex h-9 w-9 items-center justify-center rounded-xl {s.bg} text-white shadow-sm"
@@ -123,9 +133,9 @@
 	<!-- Aksi Singkat: tombol 3D ala Duolingo -->
 	<h2 class="pt-1 text-base font-black text-primary">Aksi Cepat</h2>
 	<div class="grid grid-cols-2 gap-3">
-		{#each aksesCepat as a}
+		{#each aksesCepat as a (a.href)}
 			<a
-				href={a.href}
+				href={resolve(a.href)}
 				class="flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-b-8 {a.bg} {a.border} px-4 py-5 text-center text-white transition-all duration-150 hover:brightness-105 active:translate-y-1 active:border-b-4"
 			>
 				<svg
@@ -139,7 +149,7 @@
 				>
 					<path d={a.ikon} />
 				</svg>
-				<span class="text-base font-black leading-tight">{a.label}</span>
+				<span class="text-base leading-tight font-black">{a.label}</span>
 				<span class="text-[10px] font-bold opacity-80">{a.desc}</span>
 			</a>
 		{/each}
@@ -149,14 +159,15 @@
 	<div class="rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-sm">
 		<h2 class="mb-2 text-base font-black text-primary">Agenda & Pengumuman</h2>
 		<div class="divide-y divide-slate-100">
-			{#each pengumuman as item}
+			{#each pengumuman as item (item.id)}
 				<div class="flex items-start justify-between gap-3 py-3">
 					<div class="min-w-0">
 						<p class="truncate text-sm font-bold text-slate-700">{item.judul}</p>
 						<p class="mt-0.5 text-xs font-medium text-slate-400">{item.tanggal}</p>
 					</div>
 					<span
-						class="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black {item.kategori === 'Penting'
+						class="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black {item.kategori ===
+						'Penting'
 							? 'bg-primary/15 text-primary'
 							: item.kategori === 'Akademik'
 								? 'bg-secondary/15 text-secondary'
