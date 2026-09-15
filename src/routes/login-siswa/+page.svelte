@@ -2,18 +2,18 @@
 	import {
 		aturSandiBaru,
 		butuhAturSandi,
-		cariGuruByNip,
+		cariSiswaByNisn,
 		verifikasiSandi,
-		type HasilLoginGuru
+		type HasilLoginSiswa
 	} from '$lib/api/otentikasi';
-	import { simpanSesi } from '$lib/auth.svelte';
+	import { simpanSesiSiswa } from '$lib/auth.svelte';
 
-	type Tahap = 'nip' | 'sandiBaru' | 'sandiBiasa';
+	type Tahap = 'nisn' | 'sandiBaru' | 'sandiBiasa';
 
-	let tahap = $state<Tahap>('nip');
-	let temuan = $state<HasilLoginGuru | null>(null);
+	let tahap = $state<Tahap>('nisn');
+	let temuan = $state<HasilLoginSiswa | null>(null);
 
-	let nip = $state('');
+	let nisn = $state('');
 	let sandi = $state('');
 	let sandiBaru = $state('');
 	let konfirmasi = $state('');
@@ -32,12 +32,12 @@
 			: mentah;
 	}
 
-	async function cariNip() {
-		if (!nip.trim() || memproses) return;
+	async function cariNisn() {
+		if (!nisn.trim() || memproses) return;
 		memproses = true;
 		pesanError = '';
 		try {
-			const hasil = await cariGuruByNip(nip);
+			const hasil = await cariSiswaByNisn(nisn);
 			temuan = hasil;
 			tahap = butuhAturSandi(hasil.pengguna) ? 'sandiBaru' : 'sandiBiasa';
 		} catch (e) {
@@ -62,7 +62,8 @@
 		pesanError = '';
 		try {
 			const pengguna = await aturSandiBaru(temuan.pengguna.id, sandiSiap);
-			simpanSesi(pengguna, temuan.guru);
+			simpanSesiSiswa(pengguna, temuan.siswa);
+			window.location.href = '/siswa/dashboard';
 		} catch (e) {
 			pesanError = bacaPesan(e);
 		} finally {
@@ -80,7 +81,8 @@
 		pesanError = '';
 		try {
 			verifikasiSandi(temuan.pengguna, sandi);
-			simpanSesi(temuan.pengguna, temuan.guru);
+			simpanSesiSiswa(temuan.pengguna, temuan.siswa);
+			window.location.href = '/siswa/dashboard';
 		} catch (e) {
 			pesanError = bacaPesan(e);
 		} finally {
@@ -88,10 +90,10 @@
 		}
 	}
 
-	function gantiNip() {
-		tahap = 'nip';
+	function gantiNisn() {
+		tahap = 'nisn';
 		temuan = null;
-		nip = '';
+		nisn = '';
 		sandi = '';
 		sandiBaru = '';
 		konfirmasi = '';
@@ -116,17 +118,15 @@
 				stroke-linejoin="round"
 				class="h-8 w-8"
 			>
-				<path d="M22 10L12 5 2 10l10 5 10-5z" />
-				<path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5" />
-				<path d="M22 10v6" />
+				<path d="M12 2a10 10 0 0 0-10 10 10 10 0 0 0 10 10 10 10 0 0 0 10-10A10 10 0 0 0 12 2zm0 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" />
 			</svg>
 		</div>
 		<h1 class="mt-4 text-xl font-black">Sekolah App</h1>
 		<p class="text-[11px] font-black tracking-widest text-white/60 uppercase">
-			Portal Guru · Masuk
+			Portal Siswa · Masuk
 		</p>
 		<p class="mt-2 text-xs font-medium text-white/70">
-			Masuk dengan NIP. Jika baru pertama kali, Anda akan diminta membuat password.
+			Masuk dengan NISN. Jika baru pertama kali, Anda akan diminta membuat password.
 		</p>
 	</div>
 
@@ -154,17 +154,17 @@
 		</div>
 	{/if}
 
-	<!-- ============ Tahap 1: Masukkan NIP ============ -->
-	{#if tahap === 'nip'}
+	<!-- ============ Tahap 1: Masukkan NISN ============ -->
+	{#if tahap === 'nisn'}
 		<form
 			onsubmit={(e) => {
 				e.preventDefault();
-				void cariNip();
+				void cariNisn();
 			}}
 			class="space-y-4 rounded-2xl border-2 border-b-4 border-[#E2E8F0] border-b-[#CBD5E1] bg-white p-4 shadow-sm"
 		>
 			<div>
-				<label for="nip" class="mb-1.5 block text-sm font-bold text-slate-700">NIP</label>
+				<label for="nisn" class="mb-1.5 block text-sm font-bold text-slate-700">NISN</label>
 				<div class="relative">
 					<svg
 						viewBox="0 0 24 24"
@@ -175,16 +175,15 @@
 						stroke-linejoin="round"
 						class="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-slate-400"
 					>
-						<path d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5" />
-						<path d="M14 2h4v2h-4z" />
+						<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
 					</svg>
 					<input
-						id="nip"
+						id="nisn"
 						type="text"
-						bind:value={nip}
+						bind:value={nisn}
 						autocomplete="username"
 						inputmode="numeric"
-						placeholder="Masukkan NIP guru"
+						placeholder="Masukkan NISN siswa"
 						class="w-full rounded-xl border-2 border-[#E2E8F0] py-2.5 pr-3.5 pl-10 font-medium text-slate-800 placeholder:text-slate-400 focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none"
 					/>
 				</div>
@@ -192,7 +191,7 @@
 
 			<button
 				type="submit"
-				disabled={memproses || !nip.trim()}
+				disabled={memproses || !nisn.trim()}
 				class="flex w-full items-center justify-center gap-2 rounded-2xl border-b-4 border-b-[#12243f] bg-primary py-3.5 text-sm font-black text-white shadow-md shadow-primary/20 transition-all duration-150 active:translate-y-0.5 active:border-b-2 disabled:cursor-not-allowed disabled:opacity-40"
 			>
 				<svg
@@ -217,7 +216,7 @@
 			class="space-y-4 rounded-2xl border-2 border-b-4 border-[#E2E8F0] border-b-[#CBD5E1] bg-white p-4 shadow-sm"
 		>
 			<div class="rounded-xl bg-secondary/10 p-3 text-center">
-				<p class="text-sm font-black text-secondary">Selamat datang, {temuan.guru.namaLengkap}!</p>
+				<p class="text-sm font-black text-secondary">Selamat datang, {temuan.siswa.namaLengkap}!</p>
 				<p class="text-xs font-medium text-slate-500">
 					Kamu login pertama kali. Buat password baru:
 				</p>
@@ -321,10 +320,10 @@
 
 			<button
 				type="button"
-				onclick={gantiNip}
+				onclick={gantiNisn}
 				class="w-full text-center text-xs font-bold text-slate-400 transition hover:text-secondary"
 			>
-				Ganti NIP
+				Ganti NISN
 			</button>
 		</div>
 	{:else if tahap === 'sandiBiasa' && temuan}
@@ -333,7 +332,7 @@
 			class="space-y-4 rounded-2xl border-2 border-b-4 border-[#E2E8F0] border-b-[#CBD5E1] bg-white p-4 shadow-sm"
 		>
 			<div class="rounded-xl bg-secondary/10 p-3 text-center">
-				<p class="text-sm font-black text-secondary">{temuan.guru.namaLengkap}</p>
+				<p class="text-sm font-black text-secondary">{temuan.siswa.namaLengkap}</p>
 				<p class="text-xs font-medium text-slate-500">Masukkan password untuk melanjutkan.</p>
 			</div>
 
@@ -403,10 +402,10 @@
 
 			<button
 				type="button"
-				onclick={gantiNip}
+				onclick={gantiNisn}
 				class="w-full text-center text-xs font-bold text-slate-400 transition hover:text-secondary"
 			>
-				Ganti NIP
+				Ganti NISN
 			</button>
 		</div>
 	{/if}

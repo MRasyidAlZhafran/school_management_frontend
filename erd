@@ -1,0 +1,226 @@
+
+// 1. PENGGUNA & AUTENTIKASI
+
+Table pengguna {
+  id integer [primary key, increment]
+  surel varchar [unique, not null, note: 'Email login']
+  kata_sandi varchar [not null]
+  is_aktif boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table peran {
+  id integer [primary key, increment]
+  nama_peran varchar [not null, note: 'admin, guru, siswa, orang_tua']
+}
+
+Table peran_pengguna {
+  pengguna_id integer
+  peran_id integer
+  
+  indexes {
+    (pengguna_id, peran_id) [pk]
+  }
+}
+
+// 2. ENTITAS SEKOLAH & PROFIL
+
+Table tahun_ajaran {
+  id integer [primary key, increment]
+  nama_tahun varchar [not null, note: 'contoh: 2025/2026']
+  semester varchar [not null, note: 'ganjil/genap']
+  is_aktif boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table guru {
+  id integer [primary key, increment]
+  pengguna_id integer [unique, not null]
+  nip varchar [unique]
+  nama_lengkap varchar [not null]
+  nomor_telepon varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table kelas {
+  id integer [primary key, increment]
+  nama_kelas varchar [not null, note: 'contoh: X RPL 1']
+  tingkat_kelas integer [not null]
+  wali_kelas_id integer
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table siswa {
+  id integer [primary key, increment]
+  pengguna_id integer [unique, not null]
+  nisn varchar [unique, not null]
+  nama_lengkap varchar [not null]
+  kelas_id integer
+  kunci_qr_rahasia varchar [note: 'Secret key khusus generate Dynamic QR di aplikasi HP siswa']
+  uid_kartu varchar [unique, note: 'Nomor unik kartu fisik/barcode standar/RFID (jika ada)']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table orang_tua {
+  id integer [primary key, increment]
+  pengguna_id integer [unique, not null]
+  nama_lengkap varchar [not null]
+  nomor_telepon varchar [not null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table orang_tua_siswa {
+  orang_tua_id integer
+  siswa_id integer
+  
+  indexes {
+    (orang_tua_id, siswa_id) [pk]
+  }
+}
+
+// 3. KURIKULUM & JADWAL
+
+Table mata_pelajaran {
+  id integer [primary key, increment]
+  nama_pelajaran varchar [not null]
+  kode_pelajaran varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table jadwal_pelajaran {
+  id integer [primary key, increment]
+  tahun_ajaran_id integer
+  kelas_id integer
+  mata_pelajaran_id integer
+  guru_id integer
+  hari integer [note: '1 = Senin, 5 = Jumat']
+  jam_mulai time
+  jam_selesai time
+  created_at timestamp
+  updated_at timestamp
+}
+
+// 4. ABSENSI (HARIAN & PER JAM)
+
+Enum metode_pindai {
+  QR_DINAMIS
+  KARTU_FISIK
+  PENCARIAN_MANUAL
+}
+
+Enum status_kehadiran {
+  HADIR
+  TERLAMBAT
+  IZIN
+  SAKIT
+  ALPA
+}
+
+Table absensi_harian {
+  id bigint [primary key, increment]
+  siswa_id integer [not null]
+  tanggal date [not null]
+  jam_masuk time
+  jam_keluar time
+  status status_kehadiran [default: 'ALPA']
+  metode_pindai metode_pindai [default: 'QR_DINAMIS']
+  dicatat_oleh integer [note: 'ID guru piket jika input manual/lookup']
+  created_at timestamp
+  updated_at timestamp
+  
+  indexes {
+    (siswa_id, tanggal) [unique]
+  }
+}
+
+Table absensi_pelajaran {
+  id bigint [primary key, increment]
+  jadwal_id integer [not null]
+  siswa_id integer [not null]
+  tanggal date [not null]
+  status status_kehadiran [default: 'ALPA']
+  dicatat_oleh integer [note: 'ID Guru Pengampu / Piket']
+  created_at timestamp
+  updated_at timestamp
+}
+
+
+// 5. MONITORING & POIN (PRESTASI/WANPRESTASI)
+
+Table jurnal_kelas {
+  id bigint [primary key, increment]
+  jadwal_id integer [not null]
+  tanggal date [not null]
+  materi_pembelajaran text [note: 'Materi yang diajarkan']
+  catatan_kondisi_kelas text [note: 'Catatan kondisi kedisiplinan kelas']
+  diisi_oleh integer [note: 'ID Guru yang mengisi jurnal']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Enum jenis_poin {
+  PRESTASI
+  PELANGGARAN
+}
+
+Table kategori_poin {
+  id integer [primary key, increment]
+  jenis jenis_poin
+  nama_kategori varchar [not null, note: 'contoh: Terlambat > 15 mnt, Juara 1']
+  bobot_poin integer [not null, note: '+50 atau -10']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table catatan_poin_siswa {
+  id bigint [primary key, increment]
+  siswa_id integer [not null]
+  kategori_poin_id integer [not null]
+  tanggal date [not null]
+  dilaporkan_oleh integer [not null, note: 'ID Guru pelapor']
+  deskripsi text
+  url_foto_bukti varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+// RELASI (FOREIGN KEYS)
+
+Ref: pengguna.id < peran_pengguna.pengguna_id
+Ref: peran.id < peran_pengguna.peran_id
+
+Ref: pengguna.id - guru.pengguna_id
+Ref: pengguna.id - siswa.pengguna_id
+Ref: pengguna.id - orang_tua.pengguna_id
+
+Ref: guru.id < kelas.wali_kelas_id
+Ref: kelas.id < siswa.kelas_id
+
+Ref: orang_tua.id < orang_tua_siswa.orang_tua_id
+Ref: siswa.id < orang_tua_siswa.siswa_id
+
+Ref: tahun_ajaran.id < jadwal_pelajaran.tahun_ajaran_id
+Ref: kelas.id < jadwal_pelajaran.kelas_id
+Ref: mata_pelajaran.id < jadwal_pelajaran.mata_pelajaran_id
+Ref: guru.id < jadwal_pelajaran.guru_id
+
+Ref: siswa.id < absensi_harian.siswa_id
+Ref: guru.id < absensi_harian.dicatat_oleh
+
+Ref: jadwal_pelajaran.id < absensi_pelajaran.jadwal_id
+Ref: siswa.id < absensi_pelajaran.siswa_id
+Ref: guru.id < absensi_pelajaran.dicatat_oleh
+
+Ref: jadwal_pelajaran.id < jurnal_kelas.jadwal_id
+Ref: guru.id < jurnal_kelas.diisi_oleh
+
+Ref: siswa.id < catatan_poin_siswa.siswa_id
+Ref: kategori_poin.id < catatan_poin_siswa.kategori_poin_id
+Ref: guru.id < catatan_poin_siswa.dilaporkan_oleh
