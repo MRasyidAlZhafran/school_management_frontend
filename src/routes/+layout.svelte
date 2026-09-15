@@ -15,7 +15,8 @@
 	let { children } = $props();
 
 	const pathname = $derived(page.url.pathname);
-	const diLogin = $derived(pathname === '/login');
+	const isSiswaRoute = $derived(pathname.startsWith('/siswa') || pathname === '/login-siswa');
+	const diLogin = $derived(pathname === '/login' || pathname === '/login-siswa');
 	const sesiAktif = $derived(bacaSesi());
 	const role = $derived(sesiAktif?.role ?? 'guru');
 
@@ -133,6 +134,8 @@
 	}
 
 	$effect(() => {
+		if (isSiswaRoute) return;
+
 		if (pathname === '/login') {
 			if (sesiAktif) void goto(resolve('/'));
 			return;
@@ -147,7 +150,7 @@
 	<div
 		class="relative mx-auto flex min-h-screen max-w-md flex-col border-x border-[#E2E8F0] bg-slate-50"
 	>
-		{#if !diLogin}
+		{#if !diLogin && !isSiswaRoute}
 			<!-- Header Mobile -->
 			<header class="sticky top-0 z-30 border-b-4 border-primary bg-white">
 				<div class="flex items-center justify-between px-4 py-2.5">
@@ -207,60 +210,58 @@
 			</header>
 		{/if}
 
-		<!-- Konten Utama -->
-		<main class="flex-1 pt-4 pb-24">
-			{#key pathname}
-				<div
-					transition:fly={{
-						x: arahMasuk === 1 ? 0 : arahMasuk === -1 ? -24 : 24,
-						y: arahMasuk === 1 ? 24 : 0,
-						duration: arahMasuk === 1 ? 280 : 220,
-						easing: cubicOut
-					}}
-				>
-					{@render children()}
-				</div>
-			{/key}
-		</main>
+		{#if isSiswaRoute}
+			<!-- Siswa routes: render children directly, siswa layout handles everything -->
+			{@render children()}
+		{:else}
+			<!-- Konten Utama Guru -->
+			<main class="flex-1 pt-4 pb-24">
+				{#key pathname}
+					<div>
+						{@render children()}
+					</div>
+				{/key}
+			</main>
 
-		{#if !diLogin}
-			<!-- Bottom Navigation -->
-			<nav
-				class="fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-t-2 border-slate-100 bg-white shadow-[0_-4px_12px_rgba(15,23,42,0.06)]"
-				aria-label="Navigasi bawah"
-			>
-				<div class="relative grid grid-cols-4">
-					<span
-						class="pointer-events-none absolute top-0 left-0 h-1 w-1/4 rounded-b-full bg-secondary transition-transform duration-300 ease-out"
-						style="transform: translateX({indeksAktif * 100}%)"
-					></span>
-					{#each tabs as tab (tab.href)}
-						{@const aktif = tab.isAktif(pathname)}
-						<a
-							href={resolve(tab.href)}
-							class="relative flex flex-col items-center gap-0.5 py-2 text-[10px] font-black transition-colors duration-200 {aktif
-								? 'text-secondary'
-								: 'text-slate-400 hover:text-slate-600'}"
-							aria-current={aktif ? 'page' : undefined}
-						>
-							<span class="relative mt-0.5">
-								<svg
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2.2"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									class="h-6 w-6 {aktif ? 'drop-shadow-sm' : ''}"
-								>
-									<path d={tab.icon} />
-								</svg>
-							</span>
-							<span>{tab.label}</span>
-						</a>
-					{/each}
-				</div>
-			</nav>
+			{#if !diLogin}
+				<!-- Bottom Navigation -->
+				<nav
+					class="fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-t-2 border-slate-100 bg-white shadow-[0_-4px_12px_rgba(15,23,42,0.06)]"
+					aria-label="Navigasi bawah"
+				>
+					<div class="relative grid grid-cols-4">
+						<span
+							class="pointer-events-none absolute top-0 left-0 h-1 w-1/4 rounded-b-full bg-secondary transition-transform duration-300 ease-out"
+							style="transform: translateX({indeksAktif * 100}%)"
+						></span>
+						{#each tabs as tab (tab.href)}
+							{@const aktif = tab.isAktif(pathname)}
+							<a
+								href={resolve(tab.href)}
+								class="relative flex flex-col items-center gap-0.5 py-2 text-[10px] font-black transition-colors duration-200 {aktif
+									? 'text-secondary'
+									: 'text-slate-400 hover:text-slate-600'}"
+								aria-current={aktif ? 'page' : undefined}
+							>
+								<span class="relative mt-0.5">
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2.2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										class="h-6 w-6 {aktif ? 'drop-shadow-sm' : ''}"
+									>
+										<path d={tab.icon} />
+									</svg>
+								</span>
+								<span>{tab.label}</span>
+							</a>
+						{/each}
+					</div>
+				</nav>
+			{/if}
 		{/if}
 	</div>
 </div>

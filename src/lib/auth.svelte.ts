@@ -1,84 +1,77 @@
 import { browser } from '$app/environment';
-import { sesiOrtuDemo } from '$lib/data/mock-ortu';
 import type { GuruAPI, PenggunaAPI } from '$lib/api/guru';
+import type { SiswaAPI } from '$lib/api/siswa';
 
-export interface SesiAnak {
-	siswaId: number;
-	nisn: string;
-	namaLengkap: string;
-	kelas: string;
-	tingkat: number;
-}
-
-export type PeranSesi = 'guru' | 'ortu';
-
-export interface Sesi {
-	role: PeranSesi;
+export interface SesiGuru {
 	penggunaId: number;
+	guruId: number;
 	surel: string;
 	namaLengkap: string;
-	// Guru
-	guruId?: number;
-	nip?: string | null;
-	// Bersama
-	nomorTelepon?: string | null;
-	// Orang tua
-	orangTuaId?: number;
-	daftarAnak?: SesiAnak[];
-	anakAktifId?: number | null;
+	nip: string | null;
+	nomorTelepon: string | null;
 }
 
-const KUNCI_SESI = 'sesi-sekolah';
-const KUNCI_SESI_LAMA = 'sesi-guru-sekolah';
-const KUNCI_CADANGAN = 'sesi-guru-cadangan';
-
-let sesi = $state<Sesi | null>(null);
-
-function tulisSesi(baru: Sesi) {
-	sesi = baru;
-	if (browser) localStorage.setItem(KUNCI_SESI, JSON.stringify(baru));
+export interface SesiSiswa {
+	penggunaId: number;
+	siswaId: number;
+	surel: string;
+	namaLengkap: string;
+	nisn: string;
+	kelasId: number | null;
 }
 
-export function bacaSesi(): Sesi | null {
+const KUNCI_SESI = 'sesi-guru-sekolah';
+const KUNCI_SESI_SISWA = 'sesi-siswa-sekolah';
+
+let sesi = $state<SesiGuru | null>(null);
+let sesiSiswa = $state<SesiSiswa | null>(null);
+
+export function bacaSesi(): SesiGuru | null {
 	return sesi;
+}
+
+export function bacaSesiSiswa(): SesiSiswa | null {
+	return sesiSiswa;
 }
 
 export function inisialisasiSesi() {
 	if (!browser) return;
 	try {
-		const mentah = localStorage.getItem(KUNCI_SESI) ?? localStorage.getItem(KUNCI_SESI_LAMA);
-		if (!mentah) {
-			sesi = null;
-			return;
-		}
-		const data = JSON.parse(mentah) as Partial<Sesi>;
-		sesi = {
-			role: data.role ?? 'guru',
-			penggunaId: data.penggunaId ?? 0,
-			surel: data.surel ?? '',
-			namaLengkap: data.namaLengkap ?? '',
-			guruId: data.guruId,
-			nip: data.nip,
-			nomorTelepon: data.nomorTelepon,
-			orangTuaId: data.orangTuaId,
-			daftarAnak: data.daftarAnak,
-			anakAktifId: data.anakAktifId ?? null
-		};
+		const mentah = localStorage.getItem(KUNCI_SESI);
+		sesi = mentah ? (JSON.parse(mentah) as SesiGuru) : null;
+		
+		const mentahSiswa = localStorage.getItem(KUNCI_SESI_SISWA);
+		sesiSiswa = mentahSiswa ? (JSON.parse(mentahSiswa) as SesiSiswa) : null;
 	} catch {
 		sesi = null;
+		sesiSiswa = null;
 	}
 }
 
 export function simpanSesi(pengguna: PenggunaAPI, guru: GuruAPI) {
-	tulisSesi({
-		role: 'guru',
+	const baru: SesiGuru = {
 		penggunaId: pengguna.id,
 		guruId: guru.id,
 		surel: pengguna.surel,
 		namaLengkap: guru.namaLengkap,
 		nip: guru.nip,
 		nomorTelepon: guru.nomorTelepon
-	});
+	};
+	sesi = baru;
+	if (browser) localStorage.setItem(KUNCI_SESI, JSON.stringify(baru));
+}
+
+export function simpanSesiSiswa(pengguna: PenggunaAPI, siswa: SiswaAPI) {
+	const baru: SesiSiswa = {
+		penggunaId: pengguna.id,
+		siswaId: siswa.id,
+		surel: pengguna.surel,
+		namaLengkap: siswa.namaLengkap,
+		nisn: siswa.nisn,
+		kelasId: siswa.kelasId
+	};
+	sesiSiswa = baru;
+	if (browser) localStorage.setItem(KUNCI_SESI_SISWA, JSON.stringify(baru));
 }
 
 export function hapusSesi() {
@@ -86,35 +79,9 @@ export function hapusSesi() {
 	if (browser) localStorage.removeItem(KUNCI_SESI);
 }
 
-export function aturAnakAktif(siswaId: number) {
-	const s = bacaSesi();
-	if (!s) return;
-	tulisSesi({ ...s, anakAktifId: siswaId });
-}
-
-// SEMENTARA — toggle preview role ortu. Hapus saat login/siswa dari rekan sudah masuk.
-export function masukDemoOrtu() {
-	const s = bacaSesi();
-	if (browser && s) localStorage.setItem(KUNCI_CADANGAN, JSON.stringify(s));
-	tulisSesi(sesiOrtuDemo);
-}
-
-export function kembaliDariDemoOrtu() {
-	if (!browser) return;
-	const mentah = localStorage.getItem(KUNCI_CADANGAN);
-	localStorage.removeItem(KUNCI_CADANGAN);
-	if (mentah) {
-		try {
-			const data = JSON.parse(mentah) as Partial<Sesi>;
-			if (data.role) {
-				tulisSesi(data as Sesi);
-				return;
-			}
-		} catch {
-			/* cadangan rusak — lanjut logout */
-		}
-	}
-	hapusSesi();
+export function hapusSesiSiswa() {
+	sesiSiswa = null;
+	if (browser) localStorage.removeItem(KUNCI_SESI_SISWA);
 }
 
 export function inisial(nama: string): string {
