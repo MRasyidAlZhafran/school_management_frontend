@@ -47,7 +47,7 @@
 			]);
 			
 			// Filter hanya catatan poin milik siswa yang sedang login
-			const catatanSiswaIni = catatan.filter((c) => c.siswaId === sesi?.id);
+			const catatanSiswaIni = catatan.filter((c) => c.siswaId === sesi?.siswaId);
 			riwayat = mapRiwayat(catatanSiswaIni, kategori, guru);
 		} catch (e) {
 			pesanError = e instanceof Error ? e.message : 'Gagal memuat data poin.';
