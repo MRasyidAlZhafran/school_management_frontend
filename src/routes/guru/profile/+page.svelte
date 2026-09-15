@@ -29,7 +29,7 @@
 
 	async function muatProfil() {
 		const s = sesi;
-		if (!s) return;
+		if (!s || s.role !== 'guru' || !s.guruId) return;
 		memuat = true;
 		pesanError = '';
 		try {
