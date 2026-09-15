@@ -5,15 +5,21 @@
 	import Avatar from '$lib/components/ui/Avatar.svelte';
 	import {
 		ambilJadwalJurnal,
-		kirimJurnalSesi,
+		cariStatusSesi,
+		hariJadwalSekarang,
 		overrideAbsensi,
 		petaStatusAPI,
 		petaStatusLocal,
+		selesaikanSesi,
+		type HasilSelesaiSesi,
 		type SiswaJurnalLocal,
-		type StatusJurnal
+		type StatusJurnal,
+		type StatusSesi
 	} from '$lib/api/jurnal';
 
 	const ID_JADWAL = Number(page.url.searchParams.get('jadwal') ?? 1);
+
+	type ModeUji = 'otomatis' | 'uji';
 
 	let kelas = $state('Kelas');
 	let mataPelajaran = $state('Mata Pelajaran');
@@ -21,27 +27,36 @@
 	let tanggal = $state(new Date().toISOString().slice(0, 10));
 	let jamMulai = $state('--:--');
 	let jamSelesai = $state('--:--');
-
-	let materi = $state('');
-	let catatan = $state('');
+	let jamMulaiJadwal = $state('');
+	let jamSelesaiJadwal = $state('');
+	let jadwalHari = $state<number | null>(null);
 
 	let loading = $state(true);
 	let error = $state('');
 	let pesanError = $state('');
 
+	let daftarSiswa = $state<SiswaJurnalLocal[]>([]);
+
 	// ---- State QR Presensi ----
 	let qrTerbuka = $state(false);
+	let qrDitutupManual = $state(false);
+	let qrManual = $state(false);
 	let countdown = $state(30);
 	let qrCodeUrl = $state('');
 	let tokenAktif = $state('');
-	let sesiBerjalan = $state(true);
+	let sesiBerjalan = $state(false);
 	let otomatisScan = $state(true);
 
-	let suksesKirim = $state(false);
-	let pesanSukses = $state('');
-	let menyimpan = $state(false);
+	// ---- Sesi otomatis ----
+	let statusSesi = $state<StatusSesi>('belum');
+	let statusSebelumnya: StatusSesi = 'belum';
+	let telahDikirim = $state(false);
+	let hasilSelesai = $state<HasilSelesaiSesi | null>(null);
 
-	let daftarSiswa = $state<SiswaJurnalLocal[]>([]);
+	// ---- Mode uji ----
+	let modeUji = $state<ModeUji>('otomatis');
+	let ujiMulai = $state('14:10');
+	let ujiSelesai = $state('14:15');
 
 	const hadir = $derived(
 		daftarSiswa.filter((s) => s.status === 'hadir' || s.status === 'terlambat').length
@@ -53,6 +68,10 @@
 		daftarSiswa.length === 0 ? 0 : Math.round((hadir / daftarSiswa.length) * 100)
 	);
 
+	const jamInfo = $derived(
+		modeUji === 'uji' ? `${ujiMulai} - ${ujiSelesai}` : `${jamMulai} - ${jamSelesai}`
+	);
+
 	const hariTanggal = $derived(
 		new Date(`${tanggal}T00:00:00`).toLocaleDateString('id-ID', {
 			weekday: 'long',
@@ -60,6 +79,14 @@
 			month: 'long',
 			year: 'numeric'
 		})
+	);
+
+	const teksSesi = $derived(
+		statusSesi === 'berjalan'
+			? 'Sesi sedang berlangsung — tunjukkan QR ke siswa.'
+			: statusSesi === 'selesai'
+				? 'Sesi telah selesai sesuai jadwal.'
+				: 'Sesi belum dimulai sesuai jadwal.'
 	);
 
 	const tampilanStatus: Record<StatusJurnal, { label: string; kelas: string }> = {
@@ -92,9 +119,11 @@
 			kelas = data.jadwal.nama_kelas;
 			mataPelajaran = data.jadwal.nama_mapel;
 			ruangan = data.jadwal.ruangan;
-			const [mulai, selesai] = data.jadwal.jam.split(' - ');
-			jamMulai = mulai?.trim() ?? '--:--';
-			jamSelesai = selesai?.trim() ?? '--:--';
+			jamMulai = data.jadwal.jamMulai.slice(0, 5);
+			jamSelesai = data.jadwal.jamSelesai.slice(0, 5);
+			jamMulaiJadwal = data.jadwal.jamMulai;
+			jamSelesaiJadwal = data.jadwal.jamSelesai;
+			jadwalHari = data.jadwal.hari;
 			daftarSiswa = data.siswa.map((s) => ({
 				id: s.id_siswa,
 				nisn: s.nisn,
@@ -102,6 +131,7 @@
 				status: petaStatusAPI[s.status_kehadiran] ?? 'belum',
 				waktuScan: s.waktu_scan
 			}));
+			perbaruiStatus();
 		} catch (e) {
 			error = pesanErr(e);
 		} finally {
@@ -109,7 +139,57 @@
 		}
 	}
 
-	onMount(muatJadwal);
+	function ambilWaktuSesi(): { hari: number; jamMulai: string; jamSelesai: string } | null {
+		if (modeUji === 'uji') {
+			return { hari: hariJadwalSekarang(), jamMulai: ujiMulai, jamSelesai: ujiSelesai };
+		}
+		if (jadwalHari === null) return null;
+		return { hari: jadwalHari, jamMulai: jamMulaiJadwal, jamSelesai: jamSelesaiJadwal };
+	}
+
+	function perbaruiStatus() {
+		const jadwalWaktu = ambilWaktuSesi();
+		if (!jadwalWaktu) return;
+		const hitung = cariStatusSesi(jadwalWaktu, new Date());
+		if (hitung === 'berjalan' && statusSebelumnya !== 'berjalan') qrDitutupManual = false;
+		statusSebelumnya = hitung;
+		statusSesi = hitung;
+		if (hitung === 'selesai') void akhiriSesi();
+	}
+
+	async function akhiriSesi() {
+		if (telahDikirim || loading || error) return;
+		telahDikirim = true;
+		sesiBerjalan = false;
+		otomatisScan = false;
+		if (interval) clearInterval(interval);
+		qrTerbuka = false;
+		try {
+			hasilSelesai = await selesaikanSesi({ id_jadwal: ID_JADWAL, daftar_siswa: daftarSiswa });
+		} catch (e) {
+			pesanError = `Gagal menyimpan kehadiran: ${pesanErr(e)}`;
+			telahDikirim = false;
+		}
+	}
+
+	function tutupQrManual() {
+		qrDitutupManual = true;
+		qrManual = false;
+		tutupSesi();
+	}
+
+	function tampilQr() {
+		qrManual = true;
+		qrDitutupManual = false;
+		mulaiSesi();
+	}
+
+	function gantiModeUji(m: ModeUji) {
+		modeUji = m;
+		hasilSelesai = null;
+		telahDikirim = false;
+		perbaruiStatus();
+	}
 
 	// ==== QR Code / Token generation + countdown ====
 	let interval: ReturnType<typeof setInterval> | undefined;
@@ -145,6 +225,22 @@
 		if (interval) clearInterval(interval);
 	}
 
+	$effect(() => {
+		if (statusSesi === 'berjalan') {
+			telahDikirim = false;
+			hasilSelesai = null;
+			if (!qrTerbuka && !qrDitutupManual) mulaiSesi();
+		} else if ((sesiBerjalan || qrTerbuka) && !qrManual) {
+			tutupSesi();
+		}
+	});
+
+	$effect(() => {
+		void ujiMulai;
+		void ujiSelesai;
+		if (modeUji === 'uji') perbaruiStatus();
+	});
+
 	// Simulasi siswa scan QR secara acak (demo)
 	const namaSiswaTersedia = $derived(
 		daftarSiswa.filter((s) => s.status === 'belum').map((s) => s.id)
@@ -175,44 +271,21 @@
 	}
 
 	function aturStatusManual(siswaId: number, status: StatusJurnal) {
+		otomatisScan = false;
 		kirimStatus(siswaId, status);
 	}
 
-	function setSisaSiswaHadir() {
-		for (const siswa of daftarSiswa) if (siswa.status === 'belum') kirimStatus(siswa.id, 'hadir');
-	}
-
-	function scrollManual() {
-		otomatisScan = false;
-	}
-
-	async function simpanJurnal() {
-		if (menyimpan) return;
-		menyimpan = true;
-		pesanError = '';
-		pesanSukses = '';
-		suksesKirim = false;
-		try {
-			await kirimJurnalSesi({
-				id_jadwal: ID_JADWAL,
-				materi_pembelajaran: materi,
-				catatan_jurnal: catatan,
-				daftar_siswa: daftarSiswa.map((s) => ({
-					id_siswa: s.id,
-					status_kehadiran: s.status === 'belum' ? 'BELUM' : petaStatusLocal[s.status]
-				}))
-			});
-			pesanSukses = `Jurnal ${mataPelajaran} • ${kelas} berhasil dikirim. ${hadir} siswa hadir dari ${daftarSiswa.length}.`;
-			suksesKirim = true;
-		} catch (e) {
-			pesanError = `Gagal mengirim jurnal: ${pesanErr(e)}`;
-		} finally {
-			menyimpan = false;
-		}
-	}
+	onMount(() => {
+		void muatJadwal();
+		const id = setInterval(() => perbaruiStatus(), 5000);
+		return () => {
+			clearInterval(id);
+			if (interval) clearInterval(interval);
+		};
+	});
 </script>
 
-<div class="space-y-4 px-4">
+<div class="space-y-4 px-4 pb-2">
 	{#if qrTerbuka}
 		<!-- Modal Fullscreen QR Presensi -->
 		<div class="fixed inset-0 z-[100] bg-primary">
@@ -227,7 +300,7 @@
 					</div>
 					<button
 						type="button"
-						onclick={tutupSesi}
+						onclick={tutupQrManual}
 						class="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition active:scale-95"
 						aria-label="Tutup"
 					>
@@ -326,11 +399,11 @@
 		<div class="mt-3 grid grid-cols-3 gap-2 text-center">
 			<div class="rounded-xl border-b-4 border-b-white/15 bg-white/10 p-2">
 				<p class="text-[10px] font-bold text-white/60">Kelas</p>
-				<p class="text-sm font-extrabold">{kelas}</p>
+				<p class="truncate text-sm font-extrabold">{kelas}</p>
 			</div>
 			<div class="rounded-xl border-b-4 border-b-white/15 bg-white/10 p-2">
 				<p class="text-[10px] font-bold text-white/60">Jam</p>
-				<p class="text-sm font-extrabold">{jamMulai}–{jamSelesai}</p>
+				<p class="text-sm font-extrabold">{jamInfo}</p>
 			</div>
 			<div class="rounded-xl border-b-4 border-b-white/15 bg-white/10 p-2">
 				<p class="text-[10px] font-bold text-white/60">Tanggal</p>
@@ -369,13 +442,64 @@
 			</button>
 		</div>
 	{:else}
-		<!-- ============ Mode Presensi QR (Fitur Utama) ============ -->
+		<!-- ============ Status Sesi ============ -->
 		<div
 			class="rounded-2xl border-2 border-b-4 border-[#E2E8F0] border-b-[#CBD5E1] bg-white p-4 shadow-sm"
 		>
-			<div class="mb-3 flex items-center gap-2">
+			<div class="flex items-center gap-3">
+				<span
+					class="shrink-0 rounded-full border-b-2 px-3 py-1 text-xs font-black {statusSesi ===
+					'berjalan'
+						? 'border-emerald-300 bg-emerald-100 text-emerald-700'
+						: statusSesi === 'selesai'
+							? 'border-sky-300 bg-sky-100 text-sky-700'
+							: 'border-slate-300 bg-slate-100 text-slate-500'}"
+				>
+					{statusSesi === 'berjalan'
+						? 'Berjalan'
+						: statusSesi === 'selesai'
+							? 'Selesai'
+							: 'Belum Dimulai'}
+				</span>
+				<div class="min-w-0 flex-1">
+					<p class="text-sm font-extrabold text-slate-800">{teksSesi}</p>
+					<p class="text-xs text-slate-400">Jam sesi: {jamInfo}</p>
+				</div>
+			</div>
+			<button
+				type="button"
+				onclick={tampilQr}
+				class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-b-4 border-[#29a3b8] border-b-[#1f8ba3] bg-secondary py-2.5 text-sm font-black text-white transition active:translate-y-0.5 active:border-b-2"
+			>
+				<svg
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="h-4 w-4"
+				>
+					<rect x="3" y="3" width="7" height="7" rx="1" /><rect
+						x="14"
+						y="3"
+						width="7"
+						height="7"
+						rx="1"
+					/><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M14 14h3v3h-3z" />
+					<path d="M21 14v3h-3" />
+				</svg>
+				Tampilkan QR Presensi
+			</button>
+		</div>
+
+		<!-- ============ Mode Uji ============ -->
+		<div
+			class="rounded-2xl border-2 border-b-4 border-teal-300 border-b-teal-400 bg-teal-50/60 p-4 shadow-sm"
+		>
+			<div class="flex items-center gap-2">
 				<div
-					class="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary/15 text-secondary"
+					class="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-500/15 text-teal-600"
 				>
 					<svg
 						viewBox="0 0 24 24"
@@ -386,46 +510,80 @@
 						stroke-linejoin="round"
 						class="h-4 w-4"
 					>
-						<rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
-						<rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+						<path d="M12 2l2.4 7.2H22l-6 4.6 2.3 7.2-6.3-4.6-6.3 4.6L8 13.8l-6-4.6h7.6L12 2z" />
 					</svg>
 				</div>
-				<h2 class="font-extrabold text-primary">Presensi QR Code</h2>
+				<h2 class="text-sm font-black text-primary">Mode Uji</h2>
 			</div>
-			<button
-				type="button"
-				onclick={mulaiSesi}
-				class="flex w-full items-center justify-center gap-2 rounded-2xl border-b-4 border-b-[#1f8ba3] bg-secondary py-3.5 text-sm font-black text-white shadow-lg shadow-secondary/30 transition-all duration-150 active:translate-y-0.5 active:border-b-2"
-			>
-				<svg
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2.5"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					class="h-4 w-4"
+
+			<div class="mt-3 grid grid-cols-2 gap-2">
+				<button
+					type="button"
+					onclick={() => gantiModeUji('otomatis')}
+					class="rounded-xl border-2 border-b-4 py-2 text-xs font-black transition active:translate-y-0.5 active:border-b-2 {modeUji ===
+					'otomatis'
+						? 'border-teal-400 border-b-teal-500 bg-teal-500 text-white'
+						: 'border-teal-300 border-b-teal-400 bg-white text-teal-700'}"
 				>
-					<rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
-					<rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
-				</svg>
-				Tampilkan QR Presensi Kelas
-			</button>
-			<p class="mt-2 text-center text-[11px] font-medium text-slate-400">
-				QR diperbarui otomatis tiap 30 detik & mencerminkan siswa yang mengabsen.
-			</p>
+					Otomatis (jadwal)
+				</button>
+				<button
+					type="button"
+					onclick={() => gantiModeUji('uji')}
+					class="rounded-xl border-2 border-b-4 py-2 text-xs font-black transition active:translate-y-0.5 active:border-b-2 {modeUji ===
+					'uji'
+						? 'border-teal-400 border-b-teal-500 bg-teal-500 text-white'
+						: 'border-teal-300 border-b-teal-400 bg-white text-teal-700'}"
+				>
+					Uji manual
+				</button>
+			</div>
+
+			{#if modeUji === 'uji'}
+				<div class="mt-3 grid grid-cols-2 gap-2">
+					<div>
+						<label for="uji-mulai" class="mb-1 block text-[11px] font-bold text-teal-700">
+							Mulai
+						</label>
+						<input
+							id="uji-mulai"
+							type="time"
+							bind:value={ujiMulai}
+							class="w-full rounded-xl border-2 border-teal-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 focus:outline-none"
+						/>
+					</div>
+					<div>
+						<label for="uji-selesai" class="mb-1 block text-[11px] font-bold text-teal-700">
+							Selesai
+						</label>
+						<input
+							id="uji-selesai"
+							type="time"
+							bind:value={ujiSelesai}
+							class="w-full rounded-xl border-2 border-teal-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 focus:outline-none"
+						/>
+					</div>
+				</div>
+				<p class="mt-2 text-[11px] font-medium text-teal-700/70">
+					Atur jam mulai & selesai, lalu biarkan saja — QR terbuka otomatis saat jam mulai tercapai
+					dan kehadiran tersimpan saat jam selesai.
+				</p>
+			{:else}
+				<p class="mt-2 text-[11px] font-medium text-teal-700/70">
+					QR terbuka otomatis saat jam jadwal ({jamMulai} - {jamSelesai}) tercapai, tanpa perlu klik
+					apa pun.
+				</p>
+			{/if}
 		</div>
 
 		<!-- ============ Daftar Siswa & Override Manual ============ -->
 		<div class="flex items-center justify-between">
 			<h2 class="text-base font-black text-primary">Daftar Siswa</h2>
-			<button
-				type="button"
-				onclick={setSisaSiswaHadir}
-				class="rounded-xl border-2 border-b-4 border-teal-300 border-b-teal-400 bg-white px-3 py-1 text-xs font-extrabold text-secondary transition active:translate-y-0.5 active:border-b-2"
+			<span
+				class="rounded-lg border-b-2 border-b-emerald-300 bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-700"
 			>
-				Set Sisa Siswa Hadir
-			</button>
+				Hadir {hadir} / {daftarSiswa.length}
+			</span>
 		</div>
 
 		<p class="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
@@ -468,40 +626,28 @@
 						<div class="grid grid-cols-4 gap-1.5">
 							<button
 								type="button"
-								onclick={() => {
-									scrollManual();
-									aturStatusManual(siswa.id, 'hadir');
-								}}
+								onclick={() => aturStatusManual(siswa.id, 'hadir')}
 								class="rounded-xl border-2 border-b-4 py-1.5 text-[11px] font-black transition active:translate-y-0.5 active:border-b-2 {kelasTombolManual.hadir}"
 							>
 								Hadir
 							</button>
 							<button
 								type="button"
-								onclick={() => {
-									scrollManual();
-									aturStatusManual(siswa.id, 'izin');
-								}}
+								onclick={() => aturStatusManual(siswa.id, 'izin')}
 								class="rounded-xl border-2 border-b-4 py-1.5 text-[11px] font-black transition active:translate-y-0.5 active:border-b-2 {kelasTombolManual.izin}"
 							>
 								Izin
 							</button>
 							<button
 								type="button"
-								onclick={() => {
-									scrollManual();
-									aturStatusManual(siswa.id, 'sakit');
-								}}
+								onclick={() => aturStatusManual(siswa.id, 'sakit')}
 								class="rounded-xl border-2 border-b-4 py-1.5 text-[11px] font-black transition active:translate-y-0.5 active:border-b-2 {kelasTombolManual.sakit}"
 							>
 								Sakit
 							</button>
 							<button
 								type="button"
-								onclick={() => {
-									scrollManual();
-									aturStatusManual(siswa.id, 'alpa');
-								}}
+								onclick={() => aturStatusManual(siswa.id, 'alpa')}
 								class="rounded-xl border-2 border-b-4 py-1.5 text-[11px] font-black transition active:translate-y-0.5 active:border-b-2 {kelasTombolManual.alpa}"
 							>
 								Alpa
@@ -512,7 +658,7 @@
 			{/each}
 		</div>
 
-		{#if suksesKirim}
+		{#if hasilSelesai}
 			<div
 				class="flex items-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-300 border-b-emerald-400 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700"
 				role="status"
@@ -532,7 +678,8 @@
 						<path d="M5 13l4 4L19 7" />
 					</svg>
 				</span>
-				{pesanSukses}
+				Sesi selesai — {hasilSelesai.hadir} dari {hasilSelesai.total} siswa hadir, {hasilSelesai.tersimpan}
+				catatan kehadiran tersimpan.
 			</div>
 		{/if}
 
@@ -559,68 +706,5 @@
 				{pesanError}
 			</div>
 		{/if}
-
-		<!-- ============ Form Catatan Jurnal ============ -->
-		<div
-			class="rounded-2xl border-2 border-b-4 border-[#E2E8F0] border-b-[#CBD5E1] bg-white p-4 shadow-sm"
-		>
-			<h3 class="mb-3 font-black text-primary">Catatan Jurnal</h3>
-			<div class="space-y-4">
-				<div>
-					<label
-						for="materi"
-						class="mb-1.5 flex items-center gap-1.5 text-sm font-bold text-slate-700"
-					>
-						Materi Pembelajaran
-						<span class="text-xs font-medium text-slate-400">({materi.length}/500)</span>
-					</label>
-					<textarea
-						id="materi"
-						bind:value={materi}
-						maxlength="500"
-						rows="4"
-						placeholder="Tuliskan materi yang diajarkan hari ini..."
-						class="w-full rounded-xl border-2 border-[#E2E8F0] p-3 text-sm font-medium placeholder:text-slate-400 focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none"
-					></textarea>
-				</div>
-				<div>
-					<label
-						for="catatan"
-						class="mb-1.5 flex items-center gap-1.5 text-sm font-bold text-slate-700"
-					>
-						Catatan Kondisi Kelas
-						<span class="text-xs font-medium text-slate-400">({catatan.length}/500)</span>
-					</label>
-					<textarea
-						id="catatan"
-						bind:value={catatan}
-						maxlength="500"
-						rows="3"
-						placeholder="Catatan kondisi kelas, kendala, dll..."
-						class="w-full rounded-xl border-2 border-[#E2E8F0] p-3 text-sm font-medium placeholder:text-slate-400 focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none"
-					></textarea>
-				</div>
-				<button
-					type="button"
-					onclick={simpanJurnal}
-					disabled={menyimpan}
-					class="flex w-full items-center justify-center gap-2 rounded-2xl border-b-4 border-b-[#12243f] bg-primary py-3.5 text-sm font-black text-white shadow-md shadow-primary/20 transition-all duration-150 active:translate-y-0.5 active:border-b-2 disabled:cursor-not-allowed disabled:opacity-60"
-				>
-					<svg
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2.5"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						class="h-4 w-4"
-					>
-						<line x1="22" y1="2" x2="11" y2="13" />
-						<polygon points="22 2 15 22 11 13 2 9 22 2" />
-					</svg>
-					{menyimpan ? 'Menyimpan...' : 'Simpan & Selesaikan Sesi'}
-				</button>
-			</div>
-		</div>
 	{/if}
 </div>

@@ -5,12 +5,16 @@ export type StatusKehadiranAPI = 'BELUM' | 'HADIR' | 'IZIN' | 'SAKIT' | 'ALPA';
 
 export type StatusJurnal = 'hadir' | 'terlambat' | 'izin' | 'sakit' | 'alpa' | 'belum';
 
+export type StatusSesi = 'belum' | 'berjalan' | 'selesai';
+
 export interface InfoJadwal {
 	id_jadwal: number;
 	nama_kelas: string;
 	nama_mapel: string;
-	jam: string;
 	ruangan: string;
+	hari: number;
+	jamMulai: string;
+	jamSelesai: string;
 }
 
 export interface SiswaJadwal {
@@ -24,11 +28,6 @@ export interface SiswaJadwal {
 export interface ResponsJadwalJurnal {
 	jadwal: InfoJadwal;
 	siswa: SiswaJadwal[];
-	jurnal_sekarang: {
-		id: number;
-		materi_pembelajaran: string;
-		catatan_jurnal: string;
-	} | null;
 }
 
 export interface SiswaJurnalLocal {
@@ -37,6 +36,12 @@ export interface SiswaJurnalLocal {
 	nama: string;
 	status: StatusJurnal;
 	waktuScan?: string | null;
+}
+
+export interface HasilSelesaiSesi {
+	tersimpan: number;
+	hadir: number;
+	total: number;
 }
 
 interface JadwalPelajaranAPI {
@@ -75,15 +80,6 @@ interface AbsensiPelajaranAPI {
 	dicatatOleh: number | null;
 }
 
-interface JurnalKelasAPI {
-	id: number;
-	jadwalId: number;
-	tanggal: string;
-	materiPembelajaran: string | null;
-	catatanKondisiKelas: string | null;
-	diisiOleh: number;
-}
-
 export const petaStatusAPI: Record<StatusKehadiranAPI, StatusJurnal> = {
 	BELUM: 'belum',
 	HADIR: 'hadir',
@@ -110,20 +106,39 @@ const statusKeBackend: Record<
 	ALPA: 'alpa'
 };
 
+function keMenit(jam: string): number {
+	const [h = '0', m = '0'] = jam.split(':');
+	return Number(h) * 60 + Number(m);
+}
+
+export function cariStatusSesi(
+	sesi: { hari: number; jamMulai: string; jamSelesai: string },
+	sekarang = new Date()
+): StatusSesi {
+	const hariJadwalJs = sesi.hari % 7;
+	if (hariJadwalJs !== sekarang.getDay()) return 'belum';
+	const menitSekarang = sekarang.getHours() * 60 + sekarang.getMinutes();
+	const mulai = keMenit(sesi.jamMulai);
+	const selesai = keMenit(sesi.jamSelesai);
+	if (menitSekarang < mulai) return 'belum';
+	if (menitSekarang >= selesai) return 'selesai';
+	return 'berjalan';
+}
+
+export function hariJadwalSekarang(sekarang = new Date()): number {
+	const day = sekarang.getDay();
+	return day === 0 ? 7 : day;
+}
+
 function hariIni(): string {
 	return new Date().toISOString().slice(0, 10);
 }
 
-function jamFormat(iso: string) {
-	return iso?.slice(0, 5) ?? '--:--';
-}
-
 export async function ambilJadwalJurnal(idJadwal: number): Promise<ResponsJadwalJurnal> {
-	const [jadwal, semuaSiswa, semuaAbsensi, semuaJurnal] = await Promise.all([
+	const [jadwal, semuaSiswa, semuaAbsensi] = await Promise.all([
 		api<JadwalPelajaranAPI>(`/jadwal_pelajaran/${idJadwal}`),
 		api<SiswaAPI[]>('/siswa'),
-		api<AbsensiPelajaranAPI[]>('/absensi_pelajaran'),
-		api<JurnalKelasAPI[]>('/jurnal_kelas')
+		api<AbsensiPelajaranAPI[]>('/absensi_pelajaran')
 	]);
 
 	const [kelas, mapel] = await Promise.all([
@@ -136,15 +151,16 @@ export async function ambilJadwalJurnal(idJadwal: number): Promise<ResponsJadwal
 	const absensiHariIni = semuaAbsensi.filter(
 		(a) => a.jadwalId === idJadwal && a.tanggal === tanggal
 	);
-	const jurnalHariIni = semuaJurnal.find((j) => j.jadwalId === idJadwal && j.tanggal === tanggal);
 
 	return {
 		jadwal: {
 			id_jadwal: idJadwal,
 			nama_kelas: kelas?.namaKelas ?? `Kelas #${jadwal.kelasId}`,
 			nama_mapel: mapel?.namaPelajaran ?? `Mapel #${jadwal.mataPelajaranId}`,
-			jam: `${jamFormat(jadwal.jamMulai)} - ${jamFormat(jadwal.jamSelesai)}`,
-			ruangan: '-'
+			ruangan: '-',
+			hari: jadwal.hari,
+			jamMulai: jadwal.jamMulai,
+			jamSelesai: jadwal.jamSelesai
 		},
 		siswa: siswaKelas.map((s) => {
 			const abs = absensiHariIni.find((a) => a.siswaId === s.id);
@@ -192,42 +208,21 @@ export async function overrideAbsensi(payload: {
 	});
 }
 
-export async function kirimJurnalSesi(payload: {
+export async function selesaikanSesi(payload: {
 	id_jadwal: number;
-	materi_pembelajaran: string;
-	catatan_jurnal: string;
-	daftar_siswa: { id_siswa: number; status_kehadiran: StatusKehadiranAPI }[];
-}) {
-	const tanggal = hariIni();
-	const guruId = bacaSesi()?.guruId;
-	if (!guruId) throw new Error('Sesi guru tidak ditemukan. Silakan login ulang.');
-	for (const item of payload.daftar_siswa) {
-		if (item.status_kehadiran === 'BELUM') continue;
+	daftar_siswa: SiswaJurnalLocal[];
+}): Promise<HasilSelesaiSesi> {
+	let tersimpan = 0;
+	let hadir = 0;
+	for (const siswa of payload.daftar_siswa) {
+		if (siswa.status === 'belum') continue;
+		hadir += siswa.status === 'hadir' || siswa.status === 'terlambat' ? 1 : 0;
 		await overrideAbsensi({
 			id_jadwal: payload.id_jadwal,
-			id_siswa: item.id_siswa,
-			status_kehadiran: item.status_kehadiran
+			id_siswa: siswa.id,
+			status_kehadiran: petaStatusLocal[siswa.status]
 		});
+		tersimpan += 1;
 	}
-	const semua = await api<JurnalKelasAPI[]>('/jurnal_kelas');
-	const ada = semua.find((j) => j.jadwalId === payload.id_jadwal && j.tanggal === tanggal);
-	if (ada) {
-		return api<JurnalKelasAPI>(`/jurnal_kelas/${ada.id}`, {
-			method: 'PATCH',
-			body: {
-				materiPembelajaran: payload.materi_pembelajaran || null,
-				catatanKondisiKelas: payload.catatan_jurnal || null
-			}
-		});
-	}
-	return api<JurnalKelasAPI>('/jurnal_kelas', {
-		method: 'POST',
-		body: {
-			jadwalId: payload.id_jadwal,
-			tanggal,
-			materiPembelajaran: payload.materi_pembelajaran || null,
-			catatanKondisiKelas: payload.catatan_jurnal || null,
-			diisiOleh: guruId
-		}
-	});
+	return { tersimpan, hadir, total: payload.daftar_siswa.length };
 }
