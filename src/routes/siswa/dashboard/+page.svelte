@@ -1,8 +1,40 @@
 <script lang="ts">
 	import { bacaSesiSiswa, hapusSesiSiswa, inisial } from '$lib/auth.svelte';
 	import { onMount } from 'svelte';
+	import { ambilJadwalKelas, type JadwalPelajaranSiswaAPI } from '$lib/api/jadwal';
+	import { ambilSiswa } from '$lib/api/siswa';
+	import { ambilKelas } from '$lib/api/guru';
+	import { hariJadwalSekarang, cariStatusSesi } from '$lib/api/jurnal';
 
 	let sesi = $state(bacaSesiSiswa());
+	let jadwalHariIni = $state<JadwalPelajaranSiswaAPI[]>([]);
+	let namaKelas = $state('Memuat...');
+	let loading = $state(true);
+
+	onMount(async () => {
+		if (sesi?.siswaId) {
+			try {
+				const s = await ambilSiswa(sesi.siswaId);
+				if (s.kelasId) {
+					const kData = await ambilKelas(s.kelasId);
+					if (kData) namaKelas = kData.namaKelas;
+					
+					const jadwalSemua = await ambilJadwalKelas(s.kelasId);
+					const hariIni = hariJadwalSekarang();
+					jadwalHariIni = jadwalSemua.filter((j) => j.hari === hariIni);
+				} else {
+					namaKelas = 'Belum ada kelas';
+				}
+			} catch (e) {
+				console.error(e);
+				namaKelas = 'Gagal memuat';
+			} finally {
+				loading = false;
+			}
+		} else {
+			loading = false;
+		}
+	});
 
 	function keluar() {
 		hapusSesiSiswa();
@@ -17,7 +49,7 @@
 			<div>
 				<h2 class="text-xs font-bold text-white/70">Kartu Pelajar Digital</h2>
 				<p class="text-xl font-black">{sesi?.namaLengkap}</p>
-				<p class="mt-1 text-sm font-medium text-secondary">Kelas X RPL 1</p> <!-- Harusnya di-fetch, mock for now -->
+				<p class="mt-1 text-sm font-medium text-secondary">{namaKelas}</p>
 			</div>
 			<!-- QR Placeholder -->
 			<div class="flex h-20 w-20 flex-col items-center justify-center rounded-xl bg-white p-2 shadow-inner">
@@ -72,36 +104,46 @@
 	<section class="rounded-2xl border-2 border-b-4 border-slate-200 border-b-slate-300 bg-white p-4">
 		<div class="mb-4 flex items-center justify-between">
 			<h2 class="text-sm font-bold text-slate-800">Jadwal Hari Ini</h2>
-			<button class="text-[10px] font-black text-secondary uppercase hover:underline">Lihat Semua</button>
+			<a href="/siswa/jadwal" class="text-[10px] font-black text-secondary uppercase hover:underline">Lihat Semua</a>
 		</div>
 		<div class="space-y-3">
-			<!-- Item Jadwal -->
-			<div class="flex items-center gap-3">
-				<div class="flex w-14 flex-col items-center justify-center rounded-xl bg-slate-100 py-1.5 text-center">
-					<span class="text-xs font-black text-slate-800">07:00</span>
-					<span class="text-[9px] font-bold text-slate-400">08:30</span>
+			{#if loading}
+				<div class="animate-pulse space-y-3">
+					<div class="h-14 rounded-xl bg-slate-100"></div>
+					<div class="h-14 rounded-xl bg-slate-100"></div>
 				</div>
-				<div class="flex-1">
-					<h4 class="text-sm font-bold text-slate-800">Pemrograman Web</h4>
-					<p class="text-xs font-medium text-slate-500">Budi Santoso</p>
+			{:else if jadwalHariIni.length === 0}
+				<div class="rounded-xl border-2 border-dashed border-slate-200 p-4 text-center">
+					<p class="text-xs font-bold text-slate-400">Tidak ada jadwal hari ini</p>
 				</div>
-				<div class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-600">Selesai</div>
-			</div>
-			<!-- Item Jadwal -->
-			<div class="flex items-center gap-3">
-				<div class="flex w-14 flex-col items-center justify-center rounded-xl bg-secondary/10 py-1.5 text-center">
-					<span class="text-xs font-black text-secondary">08:30</span>
-					<span class="text-[9px] font-bold text-secondary/70">10:00</span>
-				</div>
-				<div class="flex-1">
-					<h4 class="text-sm font-bold text-slate-800">Basis Data</h4>
-					<p class="text-xs font-medium text-slate-500">Siti Aminah</p>
-				</div>
-				<div class="relative flex h-2 w-2">
-					<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-secondary opacity-75"></span>
-					<span class="relative inline-flex h-2 w-2 rounded-full bg-secondary"></span>
-				</div>
-			</div>
+			{:else}
+				{#each jadwalHariIni as j}
+					{@const statusSesi = cariStatusSesi(
+						{ hari: j.hari, jamMulai: j.jamMulai, jamSelesai: j.jamSelesai },
+						new Date()
+					)}
+					<div 
+						class="flex items-center gap-3 transition-opacity duration-300 {statusSesi !== 'berjalan' ? 'opacity-50 grayscale-[50%]' : ''}"
+					>
+						<div class="flex w-14 flex-col items-center justify-center rounded-xl py-1.5 text-center {statusSesi === 'berjalan' ? 'bg-secondary/10' : 'bg-slate-100'}">
+							<span class="text-xs font-black {statusSesi === 'berjalan' ? 'text-secondary' : 'text-slate-800'}">{j.jamMulai.slice(0, 5)}</span>
+							<span class="text-[9px] font-bold {statusSesi === 'berjalan' ? 'text-secondary/70' : 'text-slate-400'}">{j.jamSelesai.slice(0, 5)}</span>
+						</div>
+						<div class="flex-1">
+							<h4 class="text-sm font-bold text-slate-800">{j.mataPelajaran || 'Mapel'}</h4>
+							<p class="text-xs font-medium text-slate-500">{j.guru || 'Guru'}</p>
+						</div>
+						{#if statusSesi === 'selesai'}
+							<div class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">Selesai</div>
+						{:else if statusSesi === 'berjalan'}
+							<div class="relative flex h-2 w-2">
+								<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-secondary opacity-75"></span>
+								<span class="relative inline-flex h-2 w-2 rounded-full bg-secondary"></span>
+							</div>
+						{/if}
+					</div>
+				{/each}
+			{/if}
 		</div>
 	</section>
 </main>

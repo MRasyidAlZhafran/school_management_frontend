@@ -69,7 +69,9 @@
 				<a href={resolve('/siswa/dashboard')} class="flex items-center gap-2.5">
 					<div class="flex h-10 w-10 items-center justify-center rounded-2xl border-b-4 border-secondary bg-primary shadow-sm">
 						<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
-							<path d="M12 2a10 10 0 0 0-10 10 10 10 0 0 0 10 10 10 10 0 0 0 10-10A10 10 0 0 0 12 2zm0 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" />
+							<path d="M22 10L12 5 2 10l10 5 10-5z" />
+							<path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5" />
+							<path d="M22 10v6" />
 						</svg>
 					</div>
 					<div>

@@ -196,7 +196,7 @@
 
 	function buatTokenBaru() {
 		const ts = Math.floor(Date.now() / 30000);
-		tokenAktif = `${kelas}-${mataPelajaran}-${ts}`;
+		tokenAktif = `jadwal:${ID_JADWAL}:ts:${ts}`;
 		QRCode.toDataURL(tokenAktif, { width: 240, margin: 2 })
 			.then((url) => (qrCodeUrl = url))
 			.catch(() => (qrCodeUrl = ''));

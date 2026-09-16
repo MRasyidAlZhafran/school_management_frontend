@@ -4,6 +4,7 @@
 	import { ambilSiswa, type SiswaAPI } from '$lib/api/siswa';
 	import { bacaSesiSiswa, hapusSesiSiswa, inisial } from '$lib/auth.svelte';
 	import { fade, scale } from 'svelte/transition';
+	import QRCode from 'qrcode';
 
 	let siswa = $state<SiswaAPI | null>(null);
 	let pengguna = $state<PenggunaAPI | null>(null);
@@ -12,6 +13,7 @@
 	let memuat = $state(true);
 	let pesanError = $state('');
 	let tanyaKeluar = $state(false);
+	let qrCodeUrl = $state('');
 
 	const sesi = $derived(bacaSesiSiswa());
 	const akunAktif = $derived(pengguna?.isAktif ?? true);
@@ -33,6 +35,11 @@
 				const kData = await ambilKelas(sData.kelasId);
 				kelas = kData;
 				if (kData) namaKelas = kData.namaKelas;
+			}
+			if (sData.kunciQrRahasia) {
+				QRCode.toDataURL(sData.kunciQrRahasia, { width: 200, margin: 2 })
+					.then((url) => (qrCodeUrl = url))
+					.catch(() => (qrCodeUrl = ''));
 			}
 		} catch (e) {
 			pesanError = e instanceof Error ? e.message : 'Gagal memuat profil.';
@@ -127,6 +134,17 @@
 				</span>
 			</div>
 		</div>
+
+		<!-- ============ QR Code Pribadi ============ -->
+		{#if qrCodeUrl}
+			<div class="rounded-2xl border-2 border-b-4 border-[#E2E8F0] border-b-[#CBD5E1] bg-white p-6 shadow-sm mt-4 text-center">
+				<h2 class="text-sm font-black text-primary mb-2">QR Code Kehadiran</h2>
+				<p class="text-xs text-slate-500 mb-4">Tunjukkan QR ini pada petugas di gerbang sekolah.</p>
+				<div class="inline-block p-2 rounded-2xl border-4 border-primary/10">
+					<img src={qrCodeUrl} alt="QR Code Siswa" class="w-40 h-40 mx-auto" />
+				</div>
+			</div>
+		{/if}
 
 		<!-- ============ Informasi Umum ============ -->
 		<div
