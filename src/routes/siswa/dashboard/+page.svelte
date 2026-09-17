@@ -51,8 +51,8 @@
 				<p class="text-xl font-black">{sesi?.namaLengkap}</p>
 				<p class="mt-1 text-sm font-medium text-secondary">{namaKelas}</p>
 			</div>
-			<!-- QR Placeholder -->
-			<div class="flex h-20 w-20 flex-col items-center justify-center rounded-xl bg-white p-2 shadow-inner">
+			<!-- Tombol Scan -->
+			<a href="/siswa/scan-pelajaran" class="flex h-20 w-20 flex-col items-center justify-center rounded-xl bg-white p-2 shadow-inner transition-transform active:scale-95">
 				<svg viewBox="0 0 24 24" fill="none" stroke="#1a365d" stroke-width="2" class="h-10 w-10 opacity-50">
 					<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
 					<rect x="7" y="7" width="3" height="3"/>
@@ -61,7 +61,7 @@
 					<rect x="14" y="14" width="3" height="3"/>
 				</svg>
 				<span class="mt-1 text-[8px] font-bold text-slate-400 uppercase">Ketuk untuk Scan</span>
-			</div>
+			</a>
 		</div>
 	</section>
 

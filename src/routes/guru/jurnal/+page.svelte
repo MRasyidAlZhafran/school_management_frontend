@@ -196,7 +196,8 @@
 
 	function buatTokenBaru() {
 		const ts = Math.floor(Date.now() / 30000);
-		tokenAktif = `jadwal:${ID_JADWAL}:ts:${ts}`;
+		const ujiFlag = modeUji === 'uji' ? '1' : '0';
+		tokenAktif = `jadwal:${ID_JADWAL}:ts:${ts}:uji:${ujiFlag}`;
 		QRCode.toDataURL(tokenAktif, { width: 240, margin: 2 })
 			.then((url) => (qrCodeUrl = url))
 			.catch(() => (qrCodeUrl = ''));
@@ -277,7 +278,21 @@
 
 	onMount(() => {
 		void muatJadwal();
-		const id = setInterval(() => perbaruiStatus(), 5000);
+		const id = setInterval(() => {
+			perbaruiStatus();
+			if (statusSesi === 'berjalan' && !loading && !qrManual) {
+				// Refresh data secara senyap di background
+				ambilJadwalJurnal(ID_JADWAL).then(data => {
+					daftarSiswa = data.siswa.map((s) => ({
+						id: s.id_siswa,
+						nisn: s.nisn,
+						nama: s.nama_lengkap,
+						status: petaStatusAPI[s.status_kehadiran] ?? 'belum',
+						waktuScan: s.waktu_scan
+					}));
+				}).catch(() => {});
+			}
+		}, 5000);
 		return () => {
 			clearInterval(id);
 			if (interval) clearInterval(interval);
